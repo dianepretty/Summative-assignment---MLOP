@@ -6,3 +6,4 @@ Pillow
 pymongo
 tqdm
 streamlit
+python-dotenv
