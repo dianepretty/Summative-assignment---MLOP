@@ -1,0 +1,7 @@
+[server]
+
+Must be true for cloud deployments (like Render) where no browser is available.
+
+headless = true
+
+enableCORS = false
