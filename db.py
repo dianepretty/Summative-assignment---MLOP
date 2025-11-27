@@ -1,14 +1,12 @@
-# src/db.py
+
 import pymongo
 from gridfs import GridFS
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 import os
 
-# Load .env file
 load_dotenv()
 
-# Get MongoDB URI from .env
 MONGO_URI = os.getenv("MONGO_URI")
 
 if not MONGO_URI:

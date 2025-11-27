@@ -1,4 +1,3 @@
-# src/retrain_model.py — FINAL: ZERO ERRORS, TRUE CONTINUAL LEARNING
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -43,7 +42,6 @@ def retrain_and_save(db, fs, model_path, device, progress_callback=None):
 
         print(f"Found {len(new_files)} new case(s)")
 
-        # Small replay buffer from original data
         old_benign = list(db["mammograms.files"].find({"label": 0, "split": {"$ne": "retrain"}}).limit(15))
         old_malig  = list(db["mammograms.files"].find({"label": 1, "split": {"$ne": "retrain"}}).limit(15))
         all_files = new_files + old_benign + old_malig
@@ -130,7 +128,6 @@ def retrain_and_save(db, fs, model_path, device, progress_callback=None):
                 best_val_acc = val_acc
                 torch.save(model.state_dict(), model_path)
 
-        # FINAL EVALUATION — 100% SAFE (NO classification_report)
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()
         all_preds = []
@@ -141,7 +138,6 @@ def retrain_and_save(db, fs, model_path, device, progress_callback=None):
         final_acc = accuracy_score(val_lbls, all_preds) * 100
         unique_labels = sorted(set(val_lbls))
 
-        # Manual precision/recall — never crashes
         tp_benign = sum(1 for t, p in zip(val_lbls, all_preds) if t == 0 and p == 0)
         tp_malig  = sum(1 for t, p in zip(val_lbls, all_preds) if t == 1 and p == 1)
         pred_benign = sum(1 for p in all_preds if p == 0)
@@ -153,7 +149,7 @@ def retrain_and_save(db, fs, model_path, device, progress_callback=None):
         malig_recall = tp_malig / true_malig * 100 if true_malig > 0 else 0
 
         print("\n" + "="*60)
-        print("CONTINUAL LEARNING COMPLETE — HONEST METRICS")
+        print("RETRAINING")
         print(f"Validation images      : {len(val_lbls)}")
         print(f"Validation Accuracy    : {final_acc:.2f}%")
         print(f"Benign Precision       : {benign_prec:.1f}%")
