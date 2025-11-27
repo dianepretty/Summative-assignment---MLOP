@@ -3,8 +3,8 @@
 This project is a medical AI system that detects breast cancer from mammograms using a deep learning model (EfficientNet-B0). 
 
 **Links**
-[Youtube-video](https://youtu.be/aTM2IDbfjbw)
-[Deployed-app](https://summative-assignment-mlop-2-rqkp.onrender.com/)
+- [Youtube-video](https://youtu.be/aTM2IDbfjbw)
+- [Deployed-app](https://summative-assignment-mlop-2-rqkp.onrender.com/)
 
 **Model key features**
 - Mammogram classification (Benign vs Malignant)
