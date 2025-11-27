@@ -7,3 +7,4 @@ pymongo
 tqdm
 streamlit
 python-dotenv
+locust
