@@ -16,7 +16,6 @@ import random
 # ─────────────────────── MODEL LOADING: ───────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Set torch threads once at startup
 torch.set_num_threads(1)
 
 @st.cache_resource(show_spinner="Loading AI model... (only once)")
@@ -45,7 +44,6 @@ with tab1:
             
         with col2:
             with st.spinner("Analyzing..."):
-                # Removed torch.set_num_threads(1) from here
                 tensor = preprocess(img).unsqueeze(0).to(device)
                 
                 with torch.no_grad():
