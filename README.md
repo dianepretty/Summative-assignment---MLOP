@@ -1,6 +1,6 @@
 # Breast Cancer Mammogram Classifier with Retraining
 
-This project is a medical AI system that detects breast cancer from mammograms using a deep learning model (EfficientNet-B0). Its features include real-time prediction, retraining from new clinical cases.
+This project is a medical AI system that detects breast cancer from mammograms using a deep learning model (EfficientNet-B0). 
 
 **Key Features**
 - Mammogram classification (Benign vs Malignant)
@@ -9,7 +9,7 @@ This project is a medical AI system that detects breast cancer from mammograms u
 - Downloading improved model (v2) 
 - Load testing  using Locust
 
-### model training details 
+### Model training details 
 
 | Component                  | Details                                                                 |
 |----------------------------|-------------------------------------------------------------------------|
@@ -20,10 +20,9 @@ This project is a medical AI system that detects breast cancer from mammograms u
 | **Optimizer**              | Adam (lr=0.0001)                                      |
 | **Loss Function**          | CrossEntropyLoss with class weighting (to handle imbalance)            |
 | **Early Stopping**         | Patience = 5 epochs                                                    |
-| **Accuracy**     | **72.05%**                                                             |
+| **Performance**     | ** Accuracy: 72.05%**                                                             |
 
-**Model Performance**
-- Accuracy: **72.05%** 
+
 
 ### Setup & Installation 
 
