@@ -1,4 +1,3 @@
-# src/model.py — FINAL WORKING VERSION
 import torch
 from torchvision import models
 import torch.nn as nn
@@ -7,8 +6,7 @@ import os
 def load_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # ABSOLUTE PATH — THIS IS THE MAGIC
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # goes up from src/ to project root
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  
     v2_path = os.path.join(base_dir, "models", "best_mammogram_v2.pth")
     v1_path = os.path.join(base_dir, "models", "best_mammogram_model.pth")
 

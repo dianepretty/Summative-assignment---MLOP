@@ -143,7 +143,7 @@ with tab3:
         if new_count < 5:
             st.warning("Add at least 5 new images")
         else:
-            st.session_state.model_trained = False # Reset training status
+            st.session_state.model_trained = False 
             st.info(f"Training on {new_count} new cases")
 
             progress_bar = st.progress(0)
