@@ -1,8 +1,9 @@
-# src/app.py — CLEAN, SIMPLE, WORKING 100%
+
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="triton")
+warnings.filterwarnings("ignore")
 import os
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import streamlit as st
 import torch
@@ -10,46 +11,33 @@ from PIL import Image
 from model_loader import load_model
 from db import db, fs, save_image
 from retrain_model import retrain_and_save
+import pandas as pd
+import random
 
-# Model setup
-MODEL_PATH_V2 = "models/best_mammogram_v2.pth"
+# ─────────────────────── MODEL LOADING: ───────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-@st.cache_resource
+@st.cache_resource(show_spinner="Loading AI model... (only once)")
 def get_model():
-    version = st.session_state.get("active_model_version", 1)
-    if version == 2 and os.path.exists(MODEL_PATH_V2):
-        try:
-            from torchvision.models import efficientnet_b0
-            import torch.nn as nn
-            model = efficientnet_b0(weights=None)
-            model.classifier = nn.Sequential(nn.Dropout(0.3), nn.Linear(1280, 2))
-            model.load_state_dict(torch.load(MODEL_PATH_V2, map_location=DEVICE))
-            model.to(DEVICE)
-            model.eval()
-            _, _, preprocess, _ = load_model()
-            return model, DEVICE, preprocess, "v2"
-        except:
-            pass
-    return load_model()
-
+    return load_model() 
 model, device, preprocess, version = get_model()
 
-# Page
+# ─────────────────────── PAGE SETUP ───────────────────────
 st.set_page_config(page_title="Breast Cancer AI", layout="wide")
-st.title("Breast Cancer Mammogram Classifier")
-st.sidebar.success(f"Model: {version}")
+st.title("Breast cancer mammogram classifier")
+st.sidebar.success("Dashboard")  
 
 tab1, tab2, tab3 = st.tabs(["Prediction", "Dataset", "Retrain Model"])
 
+# ─────────────────────── TAB 1: PREDICTION ───────────────────────
 with tab1:
-    st.header("Upload Mammogram")
+    st.header("Upload mammogram")
     uploaded = st.file_uploader("Choose image", type=["png", "jpg", "jpeg"])
     if uploaded:
         img = Image.open(uploaded).convert("RGB")
         col1, col2 = st.columns(2)
         with col1:
-            st.image(img, width="stretch")
+            st.image(img, use_column_width=True)
         with col2:
             with st.spinner("Analyzing..."):
                 tensor = preprocess(img).unsqueeze(0).to(device)
@@ -59,99 +47,147 @@ with tab1:
                     pred = "Malignant" if prob[1] > prob[0] else "Benign"
                 if pred == "Malignant":
                     st.error("Malignant — Cancer Detected")
-                    st.warning("Consult a doctor")
+                    st.warning("Consult a doctor immediately")
                 else:
                     st.success("Benign — No Cancer")
                     st.balloons()
                 st.progress(conf / 100)
-                st.write(f"Confidence: {conf:.1f}%")
+                st.write(f"**Confidence: {conf:.1f}%**")
 
+# ─────────────────────── TAB 2: DATASET ───────────────────────
 with tab2:
     st.header("Dataset Overview")
-    st.write("Benign: 793 | Malignant: 2590 | Total: 3383")
-    st.info("Original test accuracy: 72.05%")
+    data_stats = {"Class": ["Benign", "Malignant", "Total"], "Count": [793, 2590, 3383], "Percentage": ["23.4%", "76.6%", "100%"]}
+    st.table(pd.DataFrame(data_stats))
+    st.info("Original test accuracy: **72.05%**")
 
+    st.markdown("### Sample Images")
+    benign_path = "data/test/0"
+    malignant_path = "data/test/1"
+    samples = []
+    for path, label in [(benign_path, "Benign"), (malignant_path, "Malignant")]:
+        if os.path.exists(path):
+            files = random.sample(os.listdir(path), min(6, len(os.listdir(path))))
+            for f in files:
+                img = Image.open(os.path.join(path, f)).convert("RGB")
+                samples.append((img, label))
+    col_b, col_m = st.columns(2)
+    with col_b:
+        st.subheader("Benign Samples")
+        for img, lbl in [s for s in samples if s[1] == "Benign"][:6]:
+            st.image(img, width=180)
+    with col_m:
+        st.subheader("Malignant Samples")
+        for img, lbl in [s for s in samples if s[1] == "Malignant"][:6]:
+            st.image(img, width=180)
+
+# ─────────────────────── TAB 3: RETRAIN  ───────────────────────
 with tab3:
-    st.header("Retrain Model with New Clinical Cases")
+    st.header("Upload new images and retrain model")
 
-    # --- COUNT NEW IMAGES ---
+
+    if 'upload_success_message' not in st.session_state:
+        st.session_state.upload_success_message = None
+    if 'upload_warning_message' not in st.session_state:
+        st.session_state.upload_warning_message = None
+    if 'model_trained' not in st.session_state:
+        st.session_state.model_trained = False
+
+    MODEL_V2_PATH = "models/best_mammogram_v2.pth"
+    if 'v2_saved_path' not in st.session_state:
+        st.session_state.v2_saved_path = MODEL_V2_PATH
+
     try:
         new_count = db["mammograms.files"].count_documents({"split": "retrain"})
     except:
         new_count = 0
-    st.metric("New Cases in Database", new_count)
+    st.metric("New breast cancer cases Added", new_count)
 
-    # --- UPLOAD FORM (still here, fully working!) ---
     with st.form("upload_form", clear_on_submit=True):
-        uploaded_files = st.file_uploader(
-            "Upload new mammograms",
-            type=["png", "jpg", "jpeg"],
-            accept_multiple_files=True,
-            key="retrain_upload"
-        )
-        label_choice = st.radio("Label for all uploaded images", ["Benign (0)", "Malignant (1)"])
-        submitted = st.form_submit_button("Save to Database")
+        uploaded_files = st.file_uploader("Upload new mammograms", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="retrain_upload")
+        label_choice = st.radio("Label for all images", ["Benign (0)", "Malignant (1)"])
+        submitted = st.form_submit_button("Save images to Database")
+        
+        if submitted:
+            if not uploaded_files:
+                st.session_state.upload_warning_message = "Please provide images to save ⚠️"
+                st.session_state.upload_success_message = None
+            else:
+                label_int = 1 if "Malignant" in label_choice else 0
+                prog = st.progress(0)
+                
+                for i, f in enumerate(uploaded_files):
+                    try:
+                        save_image(f, label_int)
+                    except:
+                        pass
+                    prog.progress((i + 1) / len(uploaded_files))
+                prog.empty()
 
-        if submitted and uploaded_files:
-            label_int = 1 if "Malignant" in label_choice else 0
-            prog = st.progress(0)
-            saved = 0
-            for i, f in enumerate(uploaded_files):
-                try:
-                    save_image(f, label_int)
-                    saved += 1
-                except Exception as e:
-                    st.error(f"Failed: {f.name}")
-                prog.progress((i + 1) / len(uploaded_files))
-            prog.empty()
-            if saved:
-                st.success(f"Successfully saved {saved} new case(s)!")
+                st.session_state.upload_success_message = f"Added {len(uploaded_files)} new case(s)! 💾"
+                st.session_state.upload_warning_message = None
+        
+    if st.session_state.upload_warning_message:
+        st.warning(st.session_state.upload_warning_message)
+        st.session_state.upload_warning_message = None
+
+    if st.session_state.upload_success_message:
+        st.success(st.session_state.upload_success_message)
+        st.session_state.upload_success_message = None 
 
     st.markdown("---")
-    st.subheader("Fine-Tune Model")
+    st.subheader("Retrain model")
 
-    if st.button("Start Retraining → Create Updated Model", type="primary", use_container_width=True):
-        current_count = db["mammograms.files"].count_documents({"split": "retrain"})
-        if current_count == 0:
-            st.warning("No new cases found in the database.")
+
+    if st.button("Start retraining", type="primary", use_container_width=False, key="start_retrain_button"):
+        if new_count < 5:
+            st.warning("Add at least 5 new images")
         else:
-            st.info(f"Starting retraining on {current_count} new case(s)...")
+            st.session_state.model_trained = False # Reset training status
+            st.info(f"Training on {new_count} new cases")
 
-            progress_bar = st.progress(0, text="Initializing...")
+            progress_bar = st.progress(0)
             status_text = st.empty()
+            log_box = st.code("")
 
             def update_progress(stage, percent):
-                progress_bar.progress(percent / 100, text=stage)
-                status_text.markdown(f"**Status:** {stage}")
+                progress_bar.progress(percent / 100)
+                status_text.markdown(f"**{stage}**")
+                log_box.code(stage)
 
-            error_msg = retrain_and_save(
+            error = retrain_and_save(
                 db=db,
                 fs=fs,
-                model_path="models/best_mammogram_v2.pth",
+                model_path=MODEL_V2_PATH, 
                 device=DEVICE,
                 progress_callback=update_progress
             )
 
-            progress_bar.empty()
-            status_text.empty()
-
-            if error_msg:
-                st.error(f"Retraining failed: {error_msg}")
+   
+            if error:
+                st.error(f"Training failed: {error}")
             else:
-                st.success("Model successfully updated and saved as V2")
-                st.info("You can now switch to the improved model using the buttons below.")
+                st.success("Model successfully updated and saved as V2!")
+                st.session_state.model_trained = True
+          
 
-    # --- MODEL SWITCHER ---
     st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Use Original Model (V1)", use_container_width=True):
-            st.session_state.active_model_version = 1
-            st.rerun()
-    with col2:
-        if os.path.exists("models/best_mammogram_v2.pth"):
-            if st.button("Use Updated Model (V2)", use_container_width=True):
-                st.session_state.active_model_version = 2
-                st.rerun()
+    
+    if st.session_state.model_trained:
+        st.subheader("Re-training Complete 🎉")
+        st.info("Model V2 was saved successfully! You can download it below.")
+        
+        if os.path.exists(MODEL_V2_PATH):
+            with open(MODEL_V2_PATH, "rb") as file:
+                st.download_button(
+                    label="Download New Model (best_mammogram_v2.pth)",
+                    data=file,
+                    file_name="best_mammogram_v2.pth",
+                    mime="application/octet-stream",
+                    use_container_width=True
+                )
         else:
-            st.write("Updated model not available yet")
+             st.warning(f"Model file not found at {MODEL_V2_PATH}. Cannot provide download link.")
+            
+    else:
+        st.info("Ready for continual learning")

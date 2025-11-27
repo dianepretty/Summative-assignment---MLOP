@@ -1,11 +1,10 @@
-# src/model_loader.py — FINAL WORKING VERSION
 import streamlit as st
 import torch
 from torchvision import models, transforms
 import torch.nn as nn
 import os
 
-# Preprocessing
+
 preprocess = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -17,20 +16,14 @@ preprocess = transforms.Compose([
 def load_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # GO UP ONE LEVEL FROM src/ TO PROJECT ROOT
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    v2_path = os.path.join(base_dir, "models", "best_mammogram_v2.pth")
-    v1_path = os.path.join(base_dir, "models", "best_mammogram_model.pth")
-
-    if os.path.exists(v2_path):
-        model_path = v2_path
-        version = "v2 (Improved)"
-    elif os.path.exists(v1_path):
-        model_path = v1_path
-        version = "v1 (Original)"
-    else:
-        st.error("Model file not found!")
-        st.info("Put your model in the **models/** folder (same level as src/)")
+    
+    model_path = os.path.join(base_dir, "models", "best_mammogram_model.pth")
+    version = "V1 (Original - best_mammogram_model.pth)"
+    
+    if not os.path.exists(model_path):
+        st.error(f"Required Model 1 file not found: {model_path}")
+        st.info("Please ensure 'best_mammogram_model.pth' is in the **models/** folder.")
         st.stop()
 
     model = models.efficientnet_b0(weights=None)
