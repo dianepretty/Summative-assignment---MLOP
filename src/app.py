@@ -1,4 +1,3 @@
-
 import warnings
 warnings.filterwarnings("ignore")
 import os
@@ -25,32 +24,39 @@ model, device, preprocess, version = get_model()
 # ─────────────────────── PAGE SETUP ───────────────────────
 st.set_page_config(page_title="Breast Cancer AI", layout="wide")
 st.title("Breast cancer mammogram classifier")
-st.sidebar.success("Dashboard")  
+st.sidebar.success("Dashboard") 
 
 tab1, tab2, tab3 = st.tabs(["Prediction", "Dataset", "Retrain Model"])
 
 # ─────────────────────── TAB 1: PREDICTION ───────────────────────
 with tab1:
-    st.header("Upload mammogram")
+    st.header(f"Upload mammogram ") 
     uploaded = st.file_uploader("Choose image", type=["png", "jpg", "jpeg"])
+    
     if uploaded:
         img = Image.open(uploaded).convert("RGB")
         col1, col2 = st.columns(2)
+        
         with col1:
-            st.image(img, use_column_width=True)
+            st.image(img, use_container_width=True)
+            
         with col2:
             with st.spinner("Analyzing..."):
+                torch.set_num_threads(1) 
+
                 tensor = preprocess(img).unsqueeze(0).to(device)
+                
                 with torch.no_grad():
                     prob = torch.softmax(model(tensor), 1)[0]
                     conf = prob.max().item() * 100
                     pred = "Malignant" if prob[1] > prob[0] else "Benign"
+                    
                 if pred == "Malignant":
-                    st.error("Malignant — Cancer Detected")
+                    st.error("Malignant — Cancer Detected 🚨")
                     st.warning("Consult a doctor immediately")
                 else:
-                    st.success("Benign — No Cancer")
-                    st.balloons()
+                    st.success("Benign — No Cancer ✅")
+                    
                 st.progress(conf / 100)
                 st.write(f"**Confidence: {conf:.1f}%**")
 
@@ -65,12 +71,19 @@ with tab2:
     benign_path = "data/test/0"
     malignant_path = "data/test/1"
     samples = []
+    
+
     for path, label in [(benign_path, "Benign"), (malignant_path, "Malignant")]:
         if os.path.exists(path):
-            files = random.sample(os.listdir(path), min(6, len(os.listdir(path))))
+            files = os.listdir(path)
+            files = random.sample(files, min(6, len(files)))
             for f in files:
-                img = Image.open(os.path.join(path, f)).convert("RGB")
-                samples.append((img, label))
+                try:
+                    img = Image.open(os.path.join(path, f)).convert("RGB")
+                    samples.append((img, label))
+                except Exception:
+                    continue 
+
     col_b, col_m = st.columns(2)
     with col_b:
         st.subheader("Benign Samples")
@@ -81,10 +94,9 @@ with tab2:
         for img, lbl in [s for s in samples if s[1] == "Malignant"][:6]:
             st.image(img, width=180)
 
-# ─────────────────────── TAB 3: RETRAIN  ───────────────────────
+# ─────────────────────── TAB 3: RETRAIN  ───────────────────────
 with tab3:
     st.header("Upload new images and retrain model")
-
 
     if 'upload_success_message' not in st.session_state:
         st.session_state.upload_success_message = None
@@ -101,8 +113,9 @@ with tab3:
         new_count = db["mammograms.files"].count_documents({"split": "retrain"})
     except:
         new_count = 0
-    st.metric("New breast cancer cases Added", new_count)
+    st.metric("New breast cancer cases added", new_count)
 
+    # --- Upload Form ---
     with st.form("upload_form", clear_on_submit=True):
         uploaded_files = st.file_uploader("Upload new mammograms", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="retrain_upload")
         label_choice = st.radio("Label for all images", ["Benign (0)", "Malignant (1)"])
@@ -119,7 +132,8 @@ with tab3:
                 for i, f in enumerate(uploaded_files):
                     try:
                         save_image(f, label_int)
-                    except:
+                    except Exception as e:
+                        print(f"Failed to save file {f.name}: {e}")
                         pass
                     prog.progress((i + 1) / len(uploaded_files))
                 prog.empty()
@@ -141,19 +155,25 @@ with tab3:
 
     if st.button("Start retraining", type="primary", use_container_width=False, key="start_retrain_button"):
         if new_count < 5:
-            st.warning("Add at least 5 new images")
+            st.warning("Add at least 5 new images before retraining.")
         else:
             st.session_state.model_trained = False 
-            st.info(f"Training on {new_count} new cases")
-
-            progress_bar = st.progress(0)
+            
+            # --- START PROGRESS TRACKING ---
+            # We use st.empty() to create the placeholders outside the scope of the function
+            # and then populate them inside the update_progress function.
+            progress_bar = st.progress(0, text="Initializing...")
             status_text = st.empty()
-            log_box = st.code("")
+            log_box = st.code("Starting process...")
+            
+            status_text.info(f"Training started on {new_count} new cases. This may take a few minutes...")
 
             def update_progress(stage, percent):
-                progress_bar.progress(percent / 100)
-                status_text.markdown(f"**{stage}**")
-                log_box.code(stage)
+                """Callback function passed to the backend training script."""
+                progress_bar.progress(percent / 100, text=stage) # Update bar text
+                status_text.markdown(f"**Current Stage: {stage}**") # Update status text
+                log_box.code(stage, language="log") # Update detailed log (optional)
+
 
             error = retrain_and_save(
                 db=db,
@@ -162,15 +182,22 @@ with tab3:
                 device=DEVICE,
                 progress_callback=update_progress
             )
-
-   
+            # --- END PROGRESS TRACKING ---
+            
+            # Final cleanup of the widgets after training is done
             if error:
-                st.error(f"Training failed: {error}")
+                status_text.error(f"Training failed: {error}")
+                progress_bar.progress(1.0, text="Failed")
+                log_box.code(f"Training failed: {error}", language="log")
             else:
-                st.success("Model successfully updated and saved as V2!")
+                status_text.success("Model successfully updated and saved as V2! 🎉")
+                progress_bar.progress(1.0, text="Complete!")
+                log_box.code("Training complete. Model V2 saved.", language="log")
                 st.session_state.model_trained = True
-          
-
+                # Rerun the script to update the UI elements properly,
+                # which can help clear old messages and display final elements
+                # st.experimental_rerun() was removed to prevent redirection/refresh.
+            
     st.markdown("---")
     
     if st.session_state.model_trained:
@@ -178,16 +205,19 @@ with tab3:
         st.info("Model V2 was saved successfully! You can download it below.")
         
         if os.path.exists(MODEL_V2_PATH):
-            with open(MODEL_V2_PATH, "rb") as file:
-                st.download_button(
-                    label="Download New Model (best_mammogram_v2.pth)",
-                    data=file,
-                    file_name="best_mammogram_v2.pth",
-                    mime="application/octet-stream",
-                    use_container_width=True
-                )
+            try:
+                with open(MODEL_V2_PATH, "rb") as file:
+                    st.download_button(
+                        label="Download New Model (best_mammogram_v2.pth)",
+                        data=file,
+                        file_name="best_mammogram_v2.pth",
+                        mime="application/octet-stream",
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error(f"Could not open V2 file for download: {e}")
         else:
-             st.warning(f"Model file not found at {MODEL_V2_PATH}. Cannot provide download link.")
+            st.warning(f"Model file not found at {MODEL_V2_PATH}. Cannot provide download link.")
             
     else:
         st.info("Ready for continual learning")
