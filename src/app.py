@@ -16,6 +16,9 @@ import random
 # ─────────────────────── MODEL LOADING: ───────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Set torch threads once at startup
+torch.set_num_threads(1)
+
 @st.cache_resource(show_spinner="Loading AI model... (only once)")
 def get_model():
     return load_model() 
@@ -38,12 +41,11 @@ with tab1:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.image(img, use_container_width=True)
+            st.image(img, width='stretch')
             
         with col2:
             with st.spinner("Analyzing..."):
-                torch.set_num_threads(1) 
-
+                # Removed torch.set_num_threads(1) from here
                 tensor = preprocess(img).unsqueeze(0).to(device)
                 
                 with torch.no_grad():
@@ -94,7 +96,7 @@ with tab2:
         for img, lbl in [s for s in samples if s[1] == "Malignant"][:6]:
             st.image(img, width=180)
 
-# ─────────────────────── TAB 3: RETRAIN  ───────────────────────
+# ─────────────────────── TAB 3: RETRAIN  ───────────────────────
 with tab3:
     st.header("Upload new images and retrain model")
 
@@ -153,15 +155,12 @@ with tab3:
     st.subheader("Retrain model")
 
 
-    if st.button("Start retraining", type="primary", use_container_width=False, key="start_retrain_button"):
+    if st.button("Start retraining", type="primary", width='content', key="start_retrain_button"):
         if new_count < 5:
             st.warning("Add at least 5 new images before retraining.")
         else:
             st.session_state.model_trained = False 
-            
-            # --- START PROGRESS TRACKING ---
-            # We use st.empty() to create the placeholders outside the scope of the function
-            # and then populate them inside the update_progress function.
+
             progress_bar = st.progress(0, text="Initializing...")
             status_text = st.empty()
             log_box = st.code("Starting process...")
@@ -170,9 +169,9 @@ with tab3:
 
             def update_progress(stage, percent):
                 """Callback function passed to the backend training script."""
-                progress_bar.progress(percent / 100, text=stage) # Update bar text
-                status_text.markdown(f"**Current Stage: {stage}**") # Update status text
-                log_box.code(stage, language="log") # Update detailed log (optional)
+                progress_bar.progress(percent / 100, text=stage)
+                status_text.markdown(f"**Current Stage: {stage}**") 
+                log_box.code(stage, language="log") 
 
 
             error = retrain_and_save(
@@ -182,9 +181,7 @@ with tab3:
                 device=DEVICE,
                 progress_callback=update_progress
             )
-            # --- END PROGRESS TRACKING ---
-            
-            # Final cleanup of the widgets after training is done
+
             if error:
                 status_text.error(f"Training failed: {error}")
                 progress_bar.progress(1.0, text="Failed")
@@ -194,9 +191,7 @@ with tab3:
                 progress_bar.progress(1.0, text="Complete!")
                 log_box.code("Training complete. Model V2 saved.", language="log")
                 st.session_state.model_trained = True
-                # Rerun the script to update the UI elements properly,
-                # which can help clear old messages and display final elements
-                # st.experimental_rerun() was removed to prevent redirection/refresh.
+            
             
     st.markdown("---")
     
