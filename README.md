@@ -26,9 +26,9 @@ This project is a medical AI system that detects breast cancer from mammograms u
 
 ### Setup & Installation 
 
-1. Clone repository: https://github.com/dianepretty/Summative-assignment---MLOP.git
-2. Install dependencies: pip install -r requirements.txt
-3. Run app: streamlit run src/app.py
+1. Clone repository: `git clone https://github.com/dianepretty/Summative-assignment---MLOP.git`
+2. Install dependencies: `pip install -r requirements.txt`
+3. Run app: `streamlit run src/app.py`
 
 # Locust results
 ![Locust Load Test Results](assets/Locust.png)
